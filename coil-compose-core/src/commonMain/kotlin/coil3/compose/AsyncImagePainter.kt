@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.geometry.Size
@@ -49,8 +50,8 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapLatest
@@ -164,6 +165,7 @@ private fun rememberAsyncImagePainter(
     validateRequest(request)
 
     val painter = remember { AsyncImagePainter(request, state.imageLoader) }
+    painter.scope = rememberCoroutineScope { SupervisorJob() + Dispatchers.Main.immediate }
     painter.transform = transform
     painter.onState = onState
     painter.contentScale = contentScale
@@ -183,8 +185,6 @@ class AsyncImagePainter internal constructor(
     request: ImageRequest,
     imageLoader: ImageLoader,
 ) : Painter(), RememberObserver {
-
-    private var rememberScope: CoroutineScope? = null
     private val drawSize = MutableStateFlow(Size.Zero)
 
     private var painter: Painter? by mutableStateOf(null)
@@ -203,6 +203,9 @@ class AsyncImagePainter internal constructor(
             field = value
             painter = value
         }
+
+    internal lateinit var scope: CoroutineScope
+    private var rememberJob: Job? = null
 
     internal var transform = DefaultTransform
     internal var onState: ((State) -> Unit)? = null
@@ -246,11 +249,7 @@ class AsyncImagePainter internal constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onRemembered() {
         // Short circuit if we're already remembered.
-        if (rememberScope != null) return
-
-        // Create a new scope to observe state and execute requests while we're remembered.
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-        rememberScope = scope
+        if (rememberJob != null) return
 
         // Manually notify the child painter that we're remembered.
         (_painter as? RememberObserver)?.onRemembered()
@@ -264,7 +263,7 @@ class AsyncImagePainter internal constructor(
         }
 
         // Observe the current request and execute any emissions.
-        scope.launch {
+        rememberJob = scope.launch {
             snapshotFlow { request }
                 .mapLatest { imageLoader.execute(updateRequest(it)).toState() }
                 .collect(::updateState)
@@ -282,8 +281,8 @@ class AsyncImagePainter internal constructor(
     }
 
     private fun clear() {
-        rememberScope?.cancel()
-        rememberScope = null
+        rememberJob?.cancel()
+        rememberJob = null
     }
 
     /** Update the [request] to work with [AsyncImagePainter]. */
@@ -319,7 +318,7 @@ class AsyncImagePainter internal constructor(
         _painter = maybeNewCrossfadePainter(previous, current, contentScale) ?: current.painter
 
         // Manually forget and remember the old/new painters if we're already remembered.
-        if (rememberScope != null && previous.painter !== current.painter) {
+        if (rememberJob != null && previous.painter !== current.painter) {
             (previous.painter as? RememberObserver)?.onForgotten()
             (current.painter as? RememberObserver)?.onRemembered()
         }

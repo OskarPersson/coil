@@ -165,7 +165,7 @@ private fun rememberAsyncImagePainter(
     validateRequest(request)
 
     val painter = remember { AsyncImagePainter(request, state.imageLoader) }
-    painter.scope = rememberCoroutineScope { SupervisorJob() + Dispatchers.Main.immediate }
+    painter.scope = rememberCoroutineScope { SupervisorJob() }
     painter.transform = transform
     painter.onState = onState
     painter.contentScale = contentScale

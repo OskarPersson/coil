@@ -48,6 +48,7 @@ import coil3.size.Precision
 import coil3.size.Size as CoilSize
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -164,7 +165,7 @@ private fun rememberAsyncImagePainter(
     validateRequest(request)
 
     val painter = remember { AsyncImagePainter(request, state.imageLoader) }
-    painter.scope = rememberCoroutineScope { SupervisorJob() }
+    painter.scope = rememberCoroutineScope { SupervisorJob() + Dispatchers.Main.immediate }
     painter.transform = transform
     painter.onState = onState
     painter.contentScale = contentScale

@@ -52,20 +52,14 @@ actual class SvgDecoder @JvmOverloads actual constructor(
 
         val bitmapWidth: Int
         val bitmapHeight: Int
-        val (dstWidth, dstHeight) = getDstSize(svgWidth, svgHeight, options.scale)
+
         if (svgWidth > 0 && svgHeight > 0) {
-            val multiplier = DecodeUtils.computeSizeMultiplier(
-                srcWidth = svgWidth,
-                srcHeight = svgHeight,
-                dstWidth = dstWidth.toFloat(),
-                dstHeight = dstHeight.toFloat(),
-                scale = options.scale,
-            )
-            bitmapWidth = (multiplier * svgWidth).toInt()
-            bitmapHeight = (multiplier * svgHeight).toInt()
+            val resScalingFactor = options.context.resources.displayMetrics.density
+            bitmapWidth = (svgWidth * resScalingFactor).toInt()
+            bitmapHeight = (svgHeight * resScalingFactor).toInt()
         } else {
-            bitmapWidth = dstWidth
-            bitmapHeight = dstHeight
+            bitmapWidth = SVG_DEFAULT_SIZE
+            bitmapHeight = SVG_DEFAULT_SIZE
         }
 
         // Set the SVG's view box to enable scaling if it is not set.
